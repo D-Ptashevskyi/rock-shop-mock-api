@@ -6,7 +6,7 @@ const app = express();
 app.set("trust proxy", true);
 app.use(express.json({ limit: "1mb" }));
 
-const APP_VERSION = "fix-2026-03-22-v2";
+const APP_VERSION = "fix-2026-03-22-v3";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const nowIso = () => new Date().toISOString();
@@ -55,14 +55,6 @@ app.use((req, res, next) => {
   res.locals.requestId = requestId();
   res.setHeader("X-Request-Id", res.locals.requestId);
   next();
-});
-
-app.use((err, req, res, next) => {
-  if (err && err.type === "entity.parse.failed") {
-    return sendError(res, 400, "Bad Request", "Invalid JSON body");
-  }
-
-  next(err);
 });
 
 let db = {
@@ -563,17 +555,22 @@ app.get("/admin/metrics", requireAuth, requireAdmin, (req, res) => {
 });
 
 app.get("/moved-permanently", (req, res) => {
-  res.setHeader("Location", "/ping");
-  return res.status(301).end();
+  return res.status(301).json({
+    message: "Moved permanently",
+    ts: nowIso(),
+    requestId: res.locals.requestId,
+  });
 });
 
 app.get("/found", (req, res) => {
-  res.setHeader("Location", "/ping");
-  return res.status(302).end();
+  return res.status(302).json({
+    message: "Found",
+    ts: nowIso(),
+    requestId: res.locals.requestId,
+  });
 });
 
 const CACHE_ETAG = '"rock-shop-etag-v1"';
-const CACHE_BODY = { message: "Fresh content", ts: null };
 
 app.get("/cache", (req, res) => {
   const inm = req.headers["if-none-match"];
@@ -586,8 +583,11 @@ app.get("/cache", (req, res) => {
     return res.status(304).end();
   }
 
-  CACHE_BODY.ts = nowIso();
-  return res.status(200).json(CACHE_BODY);
+  return res.status(200).json({
+    message: "Fresh content",
+    ts: nowIso(),
+    requestId: res.locals.requestId,
+  });
 });
 
 app.get("/error", (req, res) => {
