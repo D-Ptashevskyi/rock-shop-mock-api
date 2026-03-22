@@ -1,12 +1,12 @@
-const express = require("express");
-const crypto = require("crypto");
+import express from "express";
+import crypto from "node:crypto";
 
 const app = express();
 
 app.set("trust proxy", true);
 app.use(express.json({ limit: "1mb" }));
 
-const APP_VERSION = "fix-2026-03-22-v3";
+const APP_VERSION = "fix-2026-03-22-v4";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const nowIso = () => new Date().toISOString();
@@ -630,6 +630,10 @@ app.use((req, res) => {
 });
 
 app.use((err, req, res, next) => {
+  if (err?.type === "entity.parse.failed") {
+    return sendError(res, 400, "Bad Request", "Invalid JSON body");
+  }
+
   console.error("Unhandled error:", err);
   return sendError(res, 500, "Internal Server Error", "Unhandled server error");
 });
