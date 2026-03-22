@@ -6,7 +6,14 @@ const app = express();
 app.set("trust proxy", true);
 app.use(express.json({ limit: "1mb" }));
 
-const APP_VERSION = "fix-2026-03-22-v4";
+const APP_VERSION = "fix-2026-03-22-v5";
+
+/*
+  ЕСЛИ ХОТИТЕ:
+  - 404 для несуществующего productId -> поставьте 404
+  - 422 для несуществующего productId -> поставьте 422
+*/
+const BAD_PRODUCT_STATUS = 422;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const nowIso = () => new Date().toISOString();
@@ -72,9 +79,7 @@ let db = {
 function seedAdmin() {
   const email = "admin@rock.shop";
 
-  if (db.usersByEmail.has(email)) {
-    return;
-  }
+  if (db.usersByEmail.has(email)) return;
 
   db.usersByEmail.set(email, {
     id: makeId("u"),
@@ -110,11 +115,9 @@ const rateState = {
 
 app.use(async (req, res, next) => {
   const ms = Number(req.query.ms);
-
   if (Number.isFinite(ms) && ms > 0) {
     await sleep(ms);
   }
-
   next();
 });
 
@@ -157,15 +160,10 @@ function getStableClientId(req) {
 }
 
 function rateLimit(req, res, next) {
-  if (!config.rate.enabled) {
-    return next();
-  }
+  if (!config.rate.enabled) return next();
 
   const excluded = ["/health", "/ping", "/__reset", "/__config"];
-
-  if (excluded.includes(req.path)) {
-    return next();
-  }
+  if (excluded.includes(req.path)) return next();
 
   const clientKey = getStableClientId(req);
   const key = `${clientKey}:${req.method}:${req.path}`;
@@ -181,7 +179,6 @@ function rateLimit(req, res, next) {
     res.setHeader("X-RateLimit-Limit", String(config.rate.max));
     res.setHeader("X-RateLimit-Remaining", String(config.rate.max - 1));
     res.setHeader("X-RateLimit-Reset", String(Math.ceil((t + config.rate.windowMs) / 1000)));
-
     return next();
   }
 
@@ -477,7 +474,12 @@ app.post("/shop/orders", requireAuth, (req, res) => {
     const product = db.products.find((p) => p.id === productId);
 
     if (!product) {
-      return sendError(res, 404, "Not Found", `Product not found: ${productId}`);
+      return sendError(
+        res,
+        BAD_PRODUCT_STATUS,
+        BAD_PRODUCT_STATUS === 404 ? "Not Found" : "Unprocessable Entity",
+        `Product not found: ${productId}`
+      );
     }
 
     total += product.price * qty;
