@@ -6,13 +6,7 @@ const app = express();
 app.set("trust proxy", true);
 app.use(express.json({ limit: "1mb" }));
 
-const APP_VERSION = "fix-2026-03-22-v5";
-
-/*
-  ЕСЛИ ХОТИТЕ:
-  - 404 для несуществующего productId -> поставьте 404
-  - 422 для несуществующего productId -> поставьте 422
-*/
+const APP_VERSION = "fix-2026-03-22-v6";
 const BAD_PRODUCT_STATUS = 422;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -115,9 +109,11 @@ const rateState = {
 
 app.use(async (req, res, next) => {
   const ms = Number(req.query.ms);
+
   if (Number.isFinite(ms) && ms > 0) {
     await sleep(ms);
   }
+
   next();
 });
 
@@ -452,7 +448,12 @@ app.post("/shop/orders", requireAuth, (req, res) => {
   }
 
   if (items.length === 0) {
-    return sendError(res, 422, "Unprocessable Entity", "items cannot be empty");
+    return sendError(
+      res,
+      422,
+      "Unprocessable Entity",
+      "Cannot create order: items cannot be empty"
+    );
   }
 
   let total = 0;
@@ -467,7 +468,7 @@ app.post("/shop/orders", requireAuth, (req, res) => {
         res,
         422,
         "Unprocessable Entity",
-        "each item must have productId (string) and qty (number > 0)"
+        "Cannot create order: each item must have valid productId and qty > 0"
       );
     }
 
@@ -477,8 +478,8 @@ app.post("/shop/orders", requireAuth, (req, res) => {
       return sendError(
         res,
         BAD_PRODUCT_STATUS,
-        BAD_PRODUCT_STATUS === 404 ? "Not Found" : "Unprocessable Entity",
-        `Product not found: ${productId}`
+        "Unprocessable Entity",
+        `Cannot create order: invalid productId '${productId}'`
       );
     }
 
